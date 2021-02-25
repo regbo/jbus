@@ -21,8 +21,6 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 
-import org.apache.commons.lang3.builder.HashCodeBuilder;
-
 /**
  * A class to hold all information of a subscriber method.
  *
@@ -102,8 +100,19 @@ class ListenerMethod {
 
 	@Override
 	public int hashCode() {
-		return new HashCodeBuilder().append(holdWeakReference).append(async).append(method)
-				.append(holdWeakReference ? weakListener : target).append(eventType).toHashCode();
+
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + (holdWeakReference ? 1231 : 1237);
+		result = prime * result + (async ? 1231 : 1237);
+		result = prime * result + ((method == null) ? 0 : method.hashCode());
+		if (holdWeakReference)
+			result = prime * result + ((weakListener == null) ? 0 : weakListener.hashCode());
+		else
+			result = prime * result + ((target == null) ? 0 : target.hashCode());
+		result = prime * result + ((eventType == null) ? 0 : eventType.hashCode());
+		return result;
+
 	}
 
 	@Override

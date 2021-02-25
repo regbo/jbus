@@ -17,10 +17,13 @@
 
 package org.dizitart.jbus;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An event bus for java 1.6+. It dispatches event to registered listeners.
@@ -108,6 +111,12 @@ public class JBus<T> {
 	}.getClass().getEnclosingClass();
 	private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(THIS_CLASS);
 
+	public static void deregister() {
+		Entry<JBus<?>, Object> entry = CurrentJBus.INSTANCE.getCurrent();
+		Utils.requireNonNull(entry, "could not access current jbus from thread");
+		entry.getKey().deregister(entry.getValue());
+	}
+
 	private final ListenersRegistry<T> listenersRegistry;
 	private final EventDispatcher<T> eventDispatcher;
 	private String tag = "";
@@ -121,7 +130,7 @@ public class JBus<T> {
 	 */
 	public JBus(Class<T> eventType, ExecutorService asyncExecutorService) {
 		this.listenersRegistry = new ListenersRegistry<T>(eventType);
-		this.eventDispatcher = new EventDispatcher<T>(listenersRegistry,
+		this.eventDispatcher = new EventDispatcher<T>(this, listenersRegistry,
 				asyncExecutorService != null ? asyncExecutorService : Executors.newCachedThreadPool());
 	}
 

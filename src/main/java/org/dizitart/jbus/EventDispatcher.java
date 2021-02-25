@@ -31,11 +31,13 @@ public class EventDispatcher<T> {
 	}.getClass().getEnclosingClass();
 	private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(THIS_CLASS);
 	private final ExecutorService executorService;
+	private JBus<T> jbus;
 	private ListenersRegistry<T> listenersRegistry;
 	private boolean isShutdownInitiated = false;
 	private ErrorHandler errorHandler;
 
-	public EventDispatcher(ListenersRegistry<T> listenersRegistry, ExecutorService asyncExecutorService) {
+	public EventDispatcher(JBus<T> jbus, ListenersRegistry<T> listenersRegistry, ExecutorService asyncExecutorService) {
+		this.jbus = Utils.requireNonNull(jbus);
 		this.listenersRegistry = listenersRegistry;
 		this.executorService = Utils.requireNonNull(asyncExecutorService);
 		errorHandler = new ErrorHandler(listenersRegistry, this);
@@ -106,10 +108,21 @@ public class EventDispatcher<T> {
 					listenersRegistry.removeWeakListener(listenerMethod.weakListener);
 				} else {
 					// invoke synchronously.
-					listenerMethod.method.invoke(listener, event);
+					CurrentJBus.INSTANCE.setCurrent(this.jbus, listener);
+					try {
+						listenerMethod.method.invoke(listener, event);
+					} finally {
+						CurrentJBus.INSTANCE.setCurrent(jbus, null);
+					}
 				}
 			} else {
-				listenerMethod.method.invoke(listenerMethod.target, event);
+				Object listener = listenerMethod.target;
+				CurrentJBus.INSTANCE.setCurrent(this.jbus, listener);
+				try {
+					listenerMethod.method.invoke(listener, event);
+				} finally {
+					CurrentJBus.INSTANCE.setCurrent(jbus, null);
+				}
 			}
 		} catch (Exception e) {
 			if (e.getCause() != null) {

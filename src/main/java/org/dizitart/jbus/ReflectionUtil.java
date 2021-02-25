@@ -70,13 +70,12 @@ class ReflectionUtil {
 		for (Method method : declaredMethods) {
 			if (!isInvokableMethod(method))
 				continue;
-			Subscribe subscribe = getSubscribe(subscribedClass, method);
-			if (subscribe == null)
+			Boolean subscribeAsync = getSubscribeAsync(subscribedClass, method);
+			if (subscribeAsync == null)
 				continue;
 			Class<?>[] parameterTypes = method.getParameterTypes();
-			if (parameterTypes == null || parameterTypes.length != 1) {
+			if (parameterTypes == null || parameterTypes.length != 1)
 				throw new JBusException(method + " is subscribe enabled, but it should have exactly 1 parameter.");
-			}
 			Class<?> eventType = parameterTypes[0];
 			if (!requireEventType.isAssignableFrom(eventType)) {
 				if (Listener.class.isAssignableFrom(subscribedClass))
@@ -87,7 +86,7 @@ class ReflectionUtil {
 			if (eventType.isArray() || method.isVarArgs())
 				throw new JBusException(
 						method + " is subscribe enabled, " + "but its parameter should not be an array or varargs.");
-			ListenerMethod listenerMethod = ListenerMethod.create(method, eventType, forceAsync || subscribe.async());
+			ListenerMethod listenerMethod = ListenerMethod.create(method, eventType, forceAsync || subscribeAsync);
 			listenerMethods.add(listenerMethod);
 		}
 		if (subscribedClass.getSuperclass() != null) {
@@ -105,25 +104,15 @@ class ReflectionUtil {
 		return Collections.unmodifiableList(new ArrayList<ListenerMethod>(listenerMethods));
 	}
 
-	private static Subscribe getSubscribe(Class<?> subscribedClass, Method method) {
+	private static Boolean getSubscribeAsync(Class<?> subscribedClass, Method method) {
 		Subscribe subscribe = null;
 		if (method.isAnnotationPresent(Subscribe.class))
 			subscribe = method.getAnnotation(Subscribe.class);
-		if (subscribe == null && Listener.class.isAssignableFrom(subscribedClass)
-				&& Listener_accept_METHOD.equals(method))
-			subscribe = new Subscribe() {
-
-				@Override
-				public Class<? extends Annotation> annotationType() {
-					return Subscribe.class;
-				}
-
-				@Override
-				public boolean async() {
-					return false;
-				}
-			};
-		return subscribe;
+		if (subscribe != null)
+			return subscribe.async();
+		if (Listener.class.isAssignableFrom(subscribedClass) && Listener_accept_METHOD.equals(method))
+			return false;
+		return null;
 	}
 
 	private static boolean isInvokableMethod(Method method) {
