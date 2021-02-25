@@ -47,10 +47,10 @@ class ListenersRegistry<T> {
 	// cache to keep track of all weak referenced listener object
 	private final List<WeakReference<Object>> weakSubscriberCache = new CopyOnWriteArrayList<WeakReference<Object>>();
 	private final Object lock = new Object();
-	private final Class<T> eventType;
+	private final Class<T> busEventType;
 
-	public ListenersRegistry(Class<T> eventType) {
-		this.eventType = Utils.requireNonNull(eventType);
+	public ListenersRegistry(Class<T> busEventType) {
+		this.busEventType = Utils.requireNonNull(busEventType);
 	}
 
 	/**
@@ -61,7 +61,7 @@ class ListenersRegistry<T> {
 	 * @param forceSyncState
 	 *
 	 */
-	void register(Object listener, boolean weak, boolean forceAsync) {
+	void register(Object listener, boolean weak, boolean forceAsync, Class<? extends T> listenEventType) {
 		WeakReference<Object> weakListener = null;
 
 		// synchronize the search in the cache, to check if the listener
@@ -90,7 +90,13 @@ class ListenersRegistry<T> {
 		// up to this point, we hold a strong reference of the object, beyond this
 		// point,
 		// if the weak is set, we will not hold any strong reference of the object.
-		List<ListenerMethod> subscribedMethods = ReflectionUtil.findSubscribeMethods(eventType, listener, forceAsync);
+		Class<? extends T> findEventType;
+		if (listenEventType != null && !listenEventType.equals(this.busEventType))
+			findEventType = listenEventType;
+		else
+			findEventType = this.busEventType;
+		List<ListenerMethod> subscribedMethods = ReflectionUtil.findSubscribeMethods(findEventType, listener,
+				forceAsync);
 		if (subscribedMethods == null || subscribedMethods.isEmpty())
 			throw new JBusException(listener + " does not have any method marked with @Subscribe.");
 
@@ -103,9 +109,9 @@ class ListenersRegistry<T> {
 				listenerMethod.holdWeakReference = false;
 			}
 
-			Class<?> eventType = listenerMethod.eventType;
-			if (registry.containsKey(eventType)) {
-				List<ListenerMethod> listenerMethods = registry.get(eventType);
+			Class<?> listenerMethodEventType = listenerMethod.eventType;
+			if (registry.containsKey(listenerMethodEventType)) {
+				List<ListenerMethod> listenerMethods = registry.get(listenerMethodEventType);
 
 				// check ListenerMethod's equals method
 				if (!listenerMethods.contains(listenerMethod)) {

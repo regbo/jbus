@@ -44,10 +44,10 @@ class ReflectionUtil {
 		}
 	}
 
-	static List<ListenerMethod> findSubscribeMethods(Class<?> requireEventType, Object listener, boolean forceAsync) {
+	static List<ListenerMethod> findSubscribeMethods(Class<?> findEventType, Object listener, boolean forceAsync) {
 		if (listener == null)
 			return Collections.emptyList();
-		return findSubscribeMethods(requireEventType, listener.getClass(), forceAsync, new HashSet<Class<?>>());
+		return findSubscribeMethods(findEventType, listener.getClass(), forceAsync, new HashSet<Class<?>>());
 	}
 
 	/**
@@ -57,7 +57,7 @@ class ReflectionUtil {
 	 * @param forceAsync
 	 *
 	 */
-	private static List<ListenerMethod> findSubscribeMethods(Class<?> requireEventType, Class<?> subscribedClass,
+	private static List<ListenerMethod> findSubscribeMethods(Class<?> findEventType, Class<?> subscribedClass,
 			boolean forceAsync, Set<Class<?>> classVisitTracker) {
 		if (subscribedClass == null)
 			return Collections.emptyList();
@@ -77,9 +77,9 @@ class ReflectionUtil {
 			if (parameterTypes == null || parameterTypes.length != 1)
 				throw new JBusException(method + " is subscribe enabled, but it should have exactly 1 parameter.");
 			Class<?> eventType = parameterTypes[0];
-			if (!requireEventType.isAssignableFrom(eventType)) {
+			if (!findEventType.isAssignableFrom(eventType)) {
 				if (Listener.class.isAssignableFrom(subscribedClass))
-					eventType = requireEventType;
+					eventType = findEventType;
 				else
 					return null;
 			}
@@ -90,13 +90,13 @@ class ReflectionUtil {
 			listenerMethods.add(listenerMethod);
 		}
 		if (subscribedClass.getSuperclass() != null) {
-			List<ListenerMethod> subscribedMethods = findSubscribeMethods(requireEventType,
+			List<ListenerMethod> subscribedMethods = findSubscribeMethods(findEventType,
 					subscribedClass.getSuperclass(), forceAsync, classVisitTracker);
 			listenerMethods.addAll(subscribedMethods);
 		}
 		if (subscribedClass.getInterfaces() != null) {
 			for (Class<?> interfaceClass : subscribedClass.getInterfaces()) {
-				List<ListenerMethod> subscribedMethods = findSubscribeMethods(requireEventType, interfaceClass,
+				List<ListenerMethod> subscribedMethods = findSubscribeMethods(findEventType, interfaceClass,
 						forceAsync, classVisitTracker);
 				listenerMethods.addAll(subscribedMethods);
 			}

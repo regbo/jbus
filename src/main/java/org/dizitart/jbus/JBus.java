@@ -128,17 +128,17 @@ public class JBus<T> {
 	/**
 	 * Instantiates a new event bus.
 	 */
-	public JBus(Class<T> eventType, ExecutorService asyncExecutorService) {
-		this.listenersRegistry = new ListenersRegistry<T>(eventType);
+	public JBus(Class<T> busEventType, ExecutorService asyncExecutorService) {
+		this.listenersRegistry = new ListenersRegistry<T>(busEventType);
 		this.eventDispatcher = new EventDispatcher<T>(this, listenersRegistry,
 				asyncExecutorService != null ? asyncExecutorService : Executors.newCachedThreadPool());
 	}
 
-	protected <X> void registerObject(Object listener, boolean weak, boolean forceAsync) {
+	protected <X> void registerObject(Object listener, boolean weak, boolean forceAsync, Class<? extends T> eventType) {
 		if (listener == null)
 			throw new NullPointerException("Null listener can not be registered.");
 		logger.trace("Registering object. listener:{} weak:{}", listener, weak);
-		listenersRegistry.register(listener, weak, forceAsync);
+		listenersRegistry.register(listener, weak, forceAsync, eventType);
 	}
 
 	/**
@@ -155,15 +155,27 @@ public class JBus<T> {
 	 *
 	 */
 	public void register(Object listener) {
-		registerObject(listener, false, false);
+		registerObject(listener, false, false, null);
+	}
+
+	public void register(Object listener, Class<? extends T> eventType) {
+		registerObject(listener, false, false, eventType);
 	}
 
 	public void register(Listener<? extends T> listener) {
-		registerObject(listener, false, false);
+		registerObject(listener, false, false, null);
+	}
+
+	public <X extends T> void register(Listener<? extends X> listener, Class<X> eventType) {
+		registerObject(listener, false, false, eventType);
 	}
 
 	public void registerAsync(Listener<? extends T> listener) {
-		registerObject(listener, false, true);
+		registerObject(listener, false, true, null);
+	}
+
+	public <X extends T> void registerAsync(Listener<? extends X> listener, Class<X> eventType) {
+		registerObject(listener, false, true, eventType);
 	}
 
 	/**
@@ -180,15 +192,27 @@ public class JBus<T> {
 	 *
 	 */
 	public void registerWeak(Object listener) {
-		registerObject(listener, true, false);
+		registerObject(listener, true, false, null);
+	}
+
+	public void registerWeak(Object listener, Class<? extends T> eventType) {
+		registerObject(listener, true, false, eventType);
 	}
 
 	public void registerWeak(Listener<? extends T> listener) {
-		registerObject(listener, true, false);
+		registerObject(listener, true, false, null);
+	}
+
+	public <X extends T> void registerWeak(Listener<? extends X> listener, Class<X> eventType) {
+		registerObject(listener, true, false, eventType);
 	}
 
 	public void registerAsyncWeak(Listener<? extends T> listener) {
-		registerObject(listener, true, true);
+		registerObject(listener, true, true, null);
+	}
+
+	public <X extends T> void registerAsyncWeak(Listener<? extends X> listener, Class<X> eventType) {
+		registerObject(listener, true, true, eventType);
 	}
 
 	/**
