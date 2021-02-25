@@ -207,7 +207,7 @@ public class JBus<T> {
 		listenersRegistry.deregister(listener);
 	}
 
-	public void post(Object event) {
+	public void post(T event) {
 		post(event, false);
 	}
 
@@ -221,7 +221,7 @@ public class JBus<T> {
 	 *                                 exception.
 	 *
 	 */
-	public void post(Object event, boolean requireSubscribers) {
+	public void post(T event, boolean requireSubscribers) {
 		if (event == null)
 			throw new NullPointerException("Null event can not be posted.");
 		logger.trace("Event {} has been posted to the bus {}", event, tag);
