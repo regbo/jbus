@@ -34,7 +34,7 @@ public class ListenerTest {
 
     @Before
     public void setUp() {
-        jBus = new JBus();
+        jBus = new JBus(Object.class);
     }
 
     @Test

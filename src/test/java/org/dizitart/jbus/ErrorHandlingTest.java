@@ -26,52 +26,52 @@ import static org.junit.Assert.*;
  * @author Anindya Chatterjee.
  */
 public class ErrorHandlingTest {
-    private JBus jBus;
+	private JBus jBus;
 
-    @Before
-    public void setUp() {
-        jBus = new JBus();
-    }
+	@Before
+	public void setUp() {
+		jBus = new JBus(Object.class);
+	}
 
-    @Test
-    public void testErrorHandling() {
-        Listener listener = new Listener();
-        jBus.register(listener);
+	@Test
+	public void testErrorHandling() {
+		Listener listener = new Listener();
+		jBus.register(listener);
 
-        jBus.post(new Event());
-        assertEquals(listener.listenerCalled, 1);
+		jBus.post(new Event());
+		assertEquals(listener.listenerCalled, 1);
 
-        RuntimeExceptionLister exceptionLister = new RuntimeExceptionLister();
-        jBus.register(exceptionLister);
+		RuntimeExceptionLister exceptionLister = new RuntimeExceptionLister();
+		jBus.register(exceptionLister);
 
-        assertFalse(exceptionLister.errorHandled);
-        jBus.post(new Event());
+		assertFalse(exceptionLister.errorHandled);
+		jBus.post(new Event());
 
-        assertEquals(listener.listenerCalled, 2);
-        assertTrue(exceptionLister.errorHandled);
-    }
+		assertEquals(listener.listenerCalled, 2);
+		assertTrue(exceptionLister.errorHandled);
+	}
 
+	private class RuntimeExceptionLister {
+		boolean errorHandled;
 
-    private class RuntimeExceptionLister {
-        boolean errorHandled;
+		@Subscribe
+		public void listen(ExceptionEvent exceptionEvent) {
+			assertNotNull(exceptionEvent);
+			assertNotNull(exceptionEvent.getExceptionContext());
+			errorHandled = true;
+		}
+	}
 
-        @Subscribe
-        public void listen(ExceptionEvent exceptionEvent) {
-            assertNotNull(exceptionEvent);
-            assertNotNull(exceptionEvent.getExceptionContext());
-            errorHandled = true;
-        }
-    }
+	private class Listener {
+		int listenerCalled;
 
-    private class Listener {
-        int listenerCalled;
+		@Subscribe
+		void listen(Event event) {
+			listenerCalled++;
+			throw new RuntimeException("generated error");
+		}
+	}
 
-        @Subscribe
-        void listen(Event event) {
-            listenerCalled++;
-            throw new RuntimeException("generated error");
-        }
-    }
-
-    private class Event {}
+	private class Event {
+	}
 }

@@ -50,7 +50,7 @@ public class WeakListenerTest {
 
     @Before
     public void setUp() {
-        jBus = new JBus();
+        jBus = new JBus(Object.class);
     }
 
     @Test

@@ -108,3 +108,6 @@ $RECYCLE.BIN/
 ### Project Specific
 *.log
 .diffblue
+.settings
+.project
+.classpath

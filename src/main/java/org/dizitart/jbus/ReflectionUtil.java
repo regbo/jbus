@@ -17,12 +17,14 @@
 
 package org.dizitart.jbus;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * A reflection utility class to extract information about subscriber methods
@@ -32,62 +34,102 @@ import java.util.List;
  * @author Anindya Chatterjee.
  */
 class ReflectionUtil {
-    private final static Logger logger = LoggerFactory.getLogger(ReflectionUtil.class);
 
-    /**
-     * Finds all subscriber methods in the whole class hierarchy of {@code subscribedClass}.
-     *
-     * */
-    static List<ListenerMethod> findSubscribedMethods(Class<?> subscribedClass) {
-        List<ListenerMethod> listenerMethodList = new ArrayList<ListenerMethod>();
-        if (subscribedClass != null) {
-            Method[] declaredMethods = subscribedClass.getDeclaredMethods();
-            for (Method method : declaredMethods) {
-                if (method.isAnnotationPresent(Subscribe.class) && !method.isBridge() && !method.isSynthetic()) {
-                    if (method.getParameterTypes().length != 1) {
-                        logger.error(method.getName() + " has @Subscribe annotation, " +
-                                "but it should have exactly 1 parameter.");
-                        throw new JBusException(method.getName() + " has @Subscribe annotation, " +
-                                "but it should have exactly 1 parameter.");
-                    }
+	private static final Method Listener_accept_METHOD;
+	static {
+		try {
+			Listener_accept_METHOD = Listener.class.getDeclaredMethod("accept", Object.class);
+		} catch (NoSuchMethodException e) {
+			throw new RuntimeException(e);
+		}
+	}
 
-                    Class<?> parameterType = method.getParameterTypes()[0];
-                    if (parameterType.isArray() || method.isVarArgs()) {
-                        logger.error(method.getName() + " has @Subscribe annotation, " +
-                                "but its parameter should not be an array or varargs.");
-                        throw new JBusException(method.getName() + " has @Subscribe annotation, " +
-                                "but its parameter should not be an array or varargs.");
-                    }
+	static List<ListenerMethod> findSubscribeMethods(Class<?> requireEventType, Object listener, boolean forceAsync) {
+		if (listener == null)
+			return Collections.emptyList();
+		return findSubscribeMethods(requireEventType, listener.getClass(), forceAsync, new HashSet<Class<?>>());
+	}
 
-                    method.setAccessible(true);
-                    Subscribe subscribe = method.getAnnotation(Subscribe.class);
-                    boolean async = subscribe.async();
+	/**
+	 * Finds all subscriber methods in the whole class hierarchy of
+	 * {@code subscribedClass}.
+	 * 
+	 * @param forceAsync
+	 *
+	 */
+	private static List<ListenerMethod> findSubscribeMethods(Class<?> requireEventType, Class<?> subscribedClass,
+			boolean forceAsync, Set<Class<?>> classVisitTracker) {
+		if (subscribedClass == null)
+			return Collections.emptyList();
+		if (Object.class.equals(subscribedClass))
+			return Collections.emptyList();
+		if (!classVisitTracker.add(subscribedClass))
+			return Collections.emptyList();
+		Set<ListenerMethod> listenerMethods = new LinkedHashSet<ListenerMethod>();
+		Method[] declaredMethods = subscribedClass.getDeclaredMethods();
+		for (Method method : declaredMethods) {
+			if (!isInvokableMethod(method))
+				continue;
+			Subscribe subscribe = getSubscribe(subscribedClass, method);
+			if (subscribe == null)
+				continue;
+			Class<?>[] parameterTypes = method.getParameterTypes();
+			if (parameterTypes == null || parameterTypes.length != 1) {
+				throw new JBusException(method + " is subscribe enabled, but it should have exactly 1 parameter.");
+			}
+			Class<?> eventType = parameterTypes[0];
+			if (!requireEventType.isAssignableFrom(eventType)) {
+				if (Listener.class.isAssignableFrom(subscribedClass))
+					eventType = requireEventType;
+				else
+					return null;
+			}
+			if (eventType.isArray() || method.isVarArgs())
+				throw new JBusException(
+						method + " is subscribe enabled, " + "but its parameter should not be an array or varargs.");
+			ListenerMethod listenerMethod = ListenerMethod.create(method, eventType, forceAsync || subscribe.async());
+			listenerMethods.add(listenerMethod);
+		}
+		if (subscribedClass.getSuperclass() != null) {
+			List<ListenerMethod> subscribedMethods = findSubscribeMethods(requireEventType,
+					subscribedClass.getSuperclass(), forceAsync, classVisitTracker);
+			listenerMethods.addAll(subscribedMethods);
+		}
+		if (subscribedClass.getInterfaces() != null) {
+			for (Class<?> interfaceClass : subscribedClass.getInterfaces()) {
+				List<ListenerMethod> subscribedMethods = findSubscribeMethods(requireEventType, interfaceClass,
+						forceAsync, classVisitTracker);
+				listenerMethods.addAll(subscribedMethods);
+			}
+		}
+		return Collections.unmodifiableList(new ArrayList<ListenerMethod>(listenerMethods));
+	}
 
-                    ListenerMethod listenerMethod = new ListenerMethod(method, method.getParameterTypes()[0]);
-                    listenerMethod.async = async;
-                    listenerMethodList.add(listenerMethod);
-                }
-            }
+	private static Subscribe getSubscribe(Class<?> subscribedClass, Method method) {
+		Subscribe subscribe = null;
+		if (method.isAnnotationPresent(Subscribe.class))
+			subscribe = method.getAnnotation(Subscribe.class);
+		if (subscribe == null && Listener.class.isAssignableFrom(subscribedClass)
+				&& Listener_accept_METHOD.equals(method))
+			subscribe = new Subscribe() {
 
-            if (subscribedClass.getSuperclass() != null && !subscribedClass.getSuperclass().equals(Object.class)) {
-                if (logger.isDebugEnabled() && !subscribedClass.getSuperclass().equals(Object.class)) {
-                    logger.debug("Super class found. searching for listener methods in super class "
-                            + subscribedClass.getSuperclass().getName());
-                }
-                List<ListenerMethod> subscribedMethods = findSubscribedMethods(subscribedClass.getSuperclass());
-                listenerMethodList.addAll(subscribedMethods);
-            }
+				@Override
+				public Class<? extends Annotation> annotationType() {
+					return Subscribe.class;
+				}
 
-            if (subscribedClass.getInterfaces() != null && subscribedClass.getInterfaces().length > 0) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Interface found. searching for listener methods in interfaces.");
-                }
-                for (Class<?> interfaceClass : subscribedClass.getInterfaces()) {
-                    List<ListenerMethod> subscribedMethods = findSubscribedMethods(interfaceClass);
-                    listenerMethodList.addAll(subscribedMethods);
-                }
-            }
-        }
-        return listenerMethodList;
-    }
+				@Override
+				public boolean async() {
+					return false;
+				}
+			};
+		return subscribe;
+	}
+
+	private static boolean isInvokableMethod(Method method) {
+		if (!method.isBridge() && !method.isSynthetic() && method.getParameterTypes().length == 1)
+			return true;
+		return false;
+	}
+
 }
